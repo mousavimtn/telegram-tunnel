@@ -1,0 +1,16 @@
+name: Telegram TCP Forwarder
+on:
+  workflow_dispatch:
+jobs:
+  forwarder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Install socat
+        run: sudo apt-get update -y && sudo apt-get install -y socat
+
+      - name: Forward TCP to Telegram
+        run: |
+          echo "Forwarding TCP 1080 → telegram.org:443"
+          socat TCP-LISTEN:1080,fork,reuseaddr TCP:telegram.org:443 &
+          sleep infinity
