@@ -6,31 +6,41 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
-      - name: Download and run DNSTT
+      - name: Setup DNSTT Server
         run: |
-          # Install curl if needed
+          # Install Python
           sudo apt-get update -y
-          sudo apt-get install -y curl openssl
+          sudo apt-get install -y python3-pip
+          pip install dnstt
 
-          # Download DNSTT server
-          curl -L -o dnstt-server https://github.com/radkesvat/DNSTT/releases/latest/download/dnstt-server-linux-amd64
-          chmod +x dnstt-server
+          # Generate keys
+          python3 -c "
+          from dnstt import noise
+          import os
+          privkey = noise.GeneratePrivkey()
+          pubkey = noise.PubkeyFromPrivkey(privkey)
+          print('============= YOUR CONFIG =============')
+          print(f'DOMAIN: v.example.com')
+          print(f'PUBLIC KEY: {pubkey.hex()}')
+          print(f'PRIVATE KEY: {privkey.hex()}')
+          print('======================================')
+          
+          # Save keys for later use
+          with open('/tmp/pubkey.txt', 'w') as f:
+              f.write(pubkey.hex())
+          with open('/tmp/privkey.txt', 'w') as f:
+              f.write(privkey.hex())
+          "
 
-          # Generate keys and start DNSTT server
-          ./dnstt-server -gen-key 2>&1 | tee keys.txt
-          echo "============= PUBLIC KEY ============="
-          cat keys.txt | grep -oP 'pubkey  \K[a-f0-9]+' || cat keys.txt
-          echo "======================================"
+          # Start DNSTT server
+          python3 -c "
+          from dnstt import server
+          import os
+          with open('/tmp/privkey.txt') as f:
+              privkey = bytes.fromhex(f.read().strip())
+          server.run(privkey, 'v.example.com', '127.0.0.1:8080', '0.0.0.0:53')
+          " &
           
-          # Start server with generated key
-          PRIVKEY=$(cat keys.txt | grep -oP 'privkey \K[a-f0-9]+' || echo "auto")
-          ./dnstt-server -privkey $PRIVKEY -udp :53 v.example.com &
-          
-          # Wait and show connection info
           sleep 5
-          echo "============= DNS TUNNEL INFO ============="
-          echo "Domain: v.example.com"
-          echo "Port: 53"
-          echo "Public Key: from keys.txt above"
-          echo "=========================================="
+          echo "DNSTT Server is running on port 53"
           sleep 360
