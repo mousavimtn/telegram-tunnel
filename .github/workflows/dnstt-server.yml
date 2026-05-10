@@ -1,0 +1,36 @@
+name: DNSTT Server
+on:
+  workflow_dispatch:
+jobs:
+  dnstt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Download and run DNSTT
+        run: |
+          # Install curl if needed
+          sudo apt-get update -y
+          sudo apt-get install -y curl openssl
+
+          # Download DNSTT server
+          curl -L -o dnstt-server https://github.com/radkesvat/DNSTT/releases/latest/download/dnstt-server-linux-amd64
+          chmod +x dnstt-server
+
+          # Generate keys and start DNSTT server
+          ./dnstt-server -gen-key 2>&1 | tee keys.txt
+          echo "============= PUBLIC KEY ============="
+          cat keys.txt | grep -oP 'pubkey  \K[a-f0-9]+' || cat keys.txt
+          echo "======================================"
+          
+          # Start server with generated key
+          PRIVKEY=$(cat keys.txt | grep -oP 'privkey \K[a-f0-9]+' || echo "auto")
+          ./dnstt-server -privkey $PRIVKEY -udp :53 v.example.com &
+          
+          # Wait and show connection info
+          sleep 5
+          echo "============= DNS TUNNEL INFO ============="
+          echo "Domain: v.example.com"
+          echo "Port: 53"
+          echo "Public Key: from keys.txt above"
+          echo "=========================================="
+          sleep 360
