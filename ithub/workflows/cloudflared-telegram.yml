@@ -1,0 +1,32 @@
+name: TCP Forwarder + Cloudflare Tunnel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  tunnel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Install socat
+        run: sudo apt-get update -y && sudo apt-get install -y socat
+
+      - name: Forward TCP to Telegram
+        run: |
+          echo "Forwarding TCP 1080 → telegram.org:443"
+          socat TCP-LISTEN:1080,fork,reuseaddr TCP:telegram.org:443 &
+
+      - name: Install cloudflared
+        run: |
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Expose tunnel
+        run: |
+          cloudflared tunnel --url tcp://localhost:1080 2>&1 | tee tunnel.log &
+          sleep 10
+          URL=$(grep -o 'tcp://[a-zA-Z0-9.-]*\.trycloudflare\.com:[0-9]*' tunnel.log | head -1)
+          echo "TUNNEL_URL=$URL" >> $GITHUB_ENV
+          echo "::notice::Tunnel URL: $URL"
+          echo "TUNNEL_SERVER_URL = $URL"
+          sleep 21000
